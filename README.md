@@ -53,7 +53,7 @@ python code/04_render_publication_figures.py \
   --natural-earth cartography/source/ne_10m_admin_0_countries.zip
 ```
 
-Verify that the reproduced publication layer is exactly identical to the checked-in reference publication files, then package it:
+Verify that the reproduced publication layer matches the checked-in reference publication files under the documented reproducibility rules (parsed schema/text semantics, numerical tolerance `1e-12`, pixel-identical PNG previews and structural vector checks), then package it:
 
 ```bash
 python code/checks.py compare-publication --publication work/publication
