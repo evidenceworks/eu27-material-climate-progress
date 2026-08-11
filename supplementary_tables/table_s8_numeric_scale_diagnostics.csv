@@ -1,0 +1,51 @@
+record_type,period,representation_or_spec,metric,value,notes
+published_vs_common,FULL_2010_2023,DMC,spearman_progress_common_vs_published,0.998168498168498,
+published_vs_common,FULL_2010_2023,DMC,mean_abs_rank_displacement,0.1481481481481481,
+published_vs_common,FULL_2010_2023,DMC,max_abs_rank_displacement,2.0,
+published_vs_common,FULL_2010_2023,RMC,spearman_progress_common_vs_published,1.0,
+published_vs_common,FULL_2010_2023,RMC,mean_abs_rank_displacement,0.0,
+published_vs_common,FULL_2010_2023,RMC,max_abs_rank_displacement,0.0,
+published_vs_common,FULL_2010_2023,TERR,spearman_progress_common_vs_published,0.998168498168498,
+published_vs_common,FULL_2010_2023,TERR,mean_abs_rank_displacement,0.2222222222222222,
+published_vs_common,FULL_2010_2023,TERR,max_abs_rank_displacement,1.0,
+published_vs_common,FULL_2010_2023,CFOOT,spearman_progress_common_vs_published,0.998168498168498,
+published_vs_common,FULL_2010_2023,CFOOT,mean_abs_rank_displacement,0.1481481481481481,
+published_vs_common,FULL_2010_2023,CFOOT,max_abs_rank_displacement,2.0,
+published_vs_common,EARLY_2010_2016,DMC,spearman_progress_common_vs_published,1.0,
+published_vs_common,EARLY_2010_2016,DMC,mean_abs_rank_displacement,0.0,
+published_vs_common,EARLY_2010_2016,DMC,max_abs_rank_displacement,0.0,
+published_vs_common,EARLY_2010_2016,RMC,spearman_progress_common_vs_published,1.0,
+published_vs_common,EARLY_2010_2016,RMC,mean_abs_rank_displacement,0.0,
+published_vs_common,EARLY_2010_2016,RMC,max_abs_rank_displacement,0.0,
+published_vs_common,EARLY_2010_2016,TERR,spearman_progress_common_vs_published,0.9914529914529916,
+published_vs_common,EARLY_2010_2016,TERR,mean_abs_rank_displacement,0.5185185185185185,
+published_vs_common,EARLY_2010_2016,TERR,max_abs_rank_displacement,4.0,
+published_vs_common,EARLY_2010_2016,CFOOT,spearman_progress_common_vs_published,1.0,
+published_vs_common,EARLY_2010_2016,CFOOT,mean_abs_rank_displacement,0.0,
+published_vs_common,EARLY_2010_2016,CFOOT,max_abs_rank_displacement,0.0,
+published_vs_common,LATE_2017_2023,DMC,spearman_progress_common_vs_published,0.9871794871794872,
+published_vs_common,LATE_2017_2023,DMC,mean_abs_rank_displacement,0.4444444444444444,
+published_vs_common,LATE_2017_2023,DMC,max_abs_rank_displacement,6.0,
+published_vs_common,LATE_2017_2023,RMC,spearman_progress_common_vs_published,1.0,
+published_vs_common,LATE_2017_2023,RMC,mean_abs_rank_displacement,0.0,
+published_vs_common,LATE_2017_2023,RMC,max_abs_rank_displacement,0.0,
+published_vs_common,LATE_2017_2023,TERR,spearman_progress_common_vs_published,0.992063492063492,
+published_vs_common,LATE_2017_2023,TERR,mean_abs_rank_displacement,0.5185185185185185,
+published_vs_common,LATE_2017_2023,TERR,max_abs_rank_displacement,3.0,
+published_vs_common,LATE_2017_2023,CFOOT,spearman_progress_common_vs_published,0.9975579975579976,
+published_vs_common,LATE_2017_2023,CFOOT,mean_abs_rank_displacement,0.2222222222222222,
+published_vs_common,LATE_2017_2023,CFOOT,max_abs_rank_displacement,2.0,
+tie_audit,EARLY_2010_2016,primary_common_pc,canonical_value_12dp,0.071428571429,CMUR; n_tied=2; geos=PT;SK; raw_span=2.3592239273284576e-16
+tie_audit,EARLY_2010_2016,primary_common_pc,canonical_value_12dp,0.360714285714,CMUR; n_tied=2; geos=BG;CZ; raw_span=6.2172489379008766e-15
+tie_audit,EARLY_2010_2016,primary_common_pc,canonical_value_12dp,0.760714285714,CMUR; n_tied=2; geos=BE;NL; raw_span=3.0420110874729296e-14
+tie_audit,EARLY_2010_2016,published_pc,canonical_value_12dp,0.071428571429,CMUR; n_tied=2; geos=PT;SK; raw_span=2.3592239273284576e-16
+tie_audit,EARLY_2010_2016,published_pc,canonical_value_12dp,0.360714285714,CMUR; n_tied=2; geos=BG;CZ; raw_span=6.2172489379008766e-15
+tie_audit,EARLY_2010_2016,published_pc,canonical_value_12dp,0.760714285714,CMUR; n_tied=2; geos=BE;NL; raw_span=3.0420110874729296e-14
+tie_audit,EARLY_2010_2016,primary_common_pc,canonical_value_12dp,0.1,CMUR; n_tied=4; geos=CY;EE;HU;SK; raw_span=3.6082248300317592e-16
+tie_audit,EARLY_2010_2016,total_scale,canonical_value_12dp,0.071428571429,CMUR; n_tied=2; geos=PT;SK; raw_span=2.3592239273284576e-16
+tie_audit,EARLY_2010_2016,total_scale,canonical_value_12dp,0.360714285714,CMUR; n_tied=2; geos=BG;CZ; raw_span=6.2172489379008766e-15
+tie_audit,EARLY_2010_2016,total_scale,canonical_value_12dp,0.760714285714,CMUR; n_tied=2; geos=BE;NL; raw_span=3.0420110874729296e-14
+tie_audit,LATE_2017_2023,primary_common_pc,canonical_value_12dp,0.04,CMUR; n_tied=2; geos=AT;IE; raw_span=1.8041124150158796e-16
+tie_audit,LATE_2017_2023,primary_common_pc,canonical_value_12dp,0.25,CMUR; n_tied=2; geos=BE;HR; raw_span=0
+CMUR_even_year,FULL_2010_2023,CMUR_even_year,D_TOTAL_f_minus_a,0.5695970695970696,2010;2012;2014;2016;2018;2020;2022
+total_scale,FULL_2010_2023,total_scale,D_TOTAL_f_minus_a,0.4304029304029304,Validated total-scale sensitivity

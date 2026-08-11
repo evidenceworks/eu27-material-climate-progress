@@ -1,0 +1,11 @@
+object_type,internal_key,public_label,value,period,metric,n_countries,tie_metadata
+concordance,a_CMUR_TERR,CMUR × Territorial GHG,0.0921855921855921,FULL_2010_2023,Spearman,27,Ranks use deterministic 12-decimal canonicalization before tie handling
+concordance,b_DMC_TERR,DMC × Territorial GHG,0.4065934065934066,FULL_2010_2023,Spearman,27,Ranks use deterministic 12-decimal canonicalization before tie handling
+concordance,c_RMC_TERR,RMC × Territorial GHG,0.5366300366300365,FULL_2010_2023,Spearman,27,Ranks use deterministic 12-decimal canonicalization before tie handling
+concordance,d_CMUR_CFOOT,CMUR × Consumption-based GHG footprint,0.0842490842490842,FULL_2010_2023,Spearman,27,Ranks use deterministic 12-decimal canonicalization before tie handling
+concordance,e_DMC_CFOOT,DMC × Consumption-based GHG footprint,0.4719169719169719,FULL_2010_2023,Spearman,27,Ranks use deterministic 12-decimal canonicalization before tie handling
+concordance,f_RMC_CFOOT,RMC × Consumption-based GHG footprint,0.688034188034188,FULL_2010_2023,Spearman,27,Ranks use deterministic 12-decimal canonicalization before tie handling
+ordered_contrast,D1_b_minus_a,D1: CMUR → DMC,0.3144078144078144,FULL_2010_2023,Difference in Spearman rho,27,Ordered contrast of validated concordance cells
+ordered_contrast,D2_c_minus_b,D2: DMC → RMC,0.1300366300366299,FULL_2010_2023,Difference in Spearman rho,27,Ordered contrast of validated concordance cells
+ordered_contrast,D3_f_minus_c,D3: Territorial → consumption-based GHG,0.1514041514041515,FULL_2010_2023,Difference in Spearman rho,27,Ordered contrast of validated concordance cells
+ordered_contrast,D_TOTAL_f_minus_a,Overall representation contrast,0.5958485958485958,FULL_2010_2023,Difference in Spearman rho,27,Ordered contrast of validated concordance cells

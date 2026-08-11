@@ -1,0 +1,13 @@
+period,internal_key,public_label,value,identity_check_error
+FULL_2010_2023,D1_b_minus_a,D1: CMUR → DMC,0.3144078144078144,0.0
+FULL_2010_2023,D2_c_minus_b,D2: DMC → RMC,0.1300366300366299,0.0
+FULL_2010_2023,D3_f_minus_c,D3: Territorial → consumption-based GHG,0.1514041514041515,0.0
+FULL_2010_2023,D_TOTAL_f_minus_a,Overall representation contrast,0.5958485958485958,0.0
+EARLY_2010_2016,D1_b_minus_a,D1: CMUR → DMC,0.4659098696950756,0.0
+EARLY_2010_2016,D2_c_minus_b,D2: DMC → RMC,0.1843711843711843,0.0
+EARLY_2010_2016,D3_f_minus_c,D3: Territorial → consumption-based GHG,0.2496947496947497,0.0
+EARLY_2010_2016,D_TOTAL_f_minus_a,Overall representation contrast,0.8999758037610097,0.0
+LATE_2017_2023,D1_b_minus_a,D1: CMUR → DMC,0.5061050061050061,0.0
+LATE_2017_2023,D2_c_minus_b,D2: DMC → RMC,-0.1794871794871795,0.0
+LATE_2017_2023,D3_f_minus_c,D3: Territorial → consumption-based GHG,0.0073260073260074,0.0
+LATE_2017_2023,D_TOTAL_f_minus_a,Overall representation contrast,0.333943833943834,0.0
