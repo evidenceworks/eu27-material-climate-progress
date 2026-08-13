@@ -129,7 +129,7 @@ def safe_extract(zip_path, destination):
 def write_checksums(root):
     root=Path(root); out=root/"checksums.sha256"
     if out.exists(): out.unlink()
-    files=sorted(p for p in root.rglob("*") if p.is_file() and p.name!="checksums.sha256")
+    files=sorted(p for p in root.rglob("*") if p.is_file() and p.name!="checksums.sha256" and "__pycache__" not in p.relative_to(root).parts and ".pytest_cache" not in p.relative_to(root).parts and p.suffix!=".pyc" and "work" not in p.relative_to(root).parts)
     out.write_text("".join(f"{sha256_file(p)}  {p.relative_to(root).as_posix()}\n" for p in files),encoding="utf-8")
 
 def deterministic_zip(source_root, output_zip):
@@ -162,12 +162,12 @@ def package_analysis(repo_root, output_zip, receipt_json=None, git_commit=None, 
     (stage/"numeric").mkdir(parents=True)
     shutil.copy2(data/"panel_2010_2023.csv",stage/"data"/"panel_2010_2023.csv")
     for p in sorted((data/"normalized").glob("*.csv")): shutil.copy2(p,stage/"data"/"normalized"/p.name)
-    for sub in ["tables","supplementary","source_data"]: shutil.copytree(analysis/sub,stage/"numeric"/sub)
+    for sub in ["tables","supplementary","source_data","supplementary_data"]: shutil.copytree(analysis/sub,stage/"numeric"/sub)
     shutil.copy2(repo_root/"data"/"sources.csv",stage/"data"/"sources.csv")
     shutil.copy2(repo_root/"data"/"data_dictionary.csv",stage/"data"/"data_dictionary.csv")
     summary={"status":"PASS","rows":378,"countries":27,"years":"2010-2023","max_result_difference":compare_analysis(repo_root,analysis)}
     (stage/"validation.json").write_text(json.dumps(summary,indent=2,sort_keys=True)+"\n",encoding="utf-8")
-    (stage/"README.txt").write_text("Reproduced analysis package. The numeric directory contains tables, supplementary results, and figure source data generated from the fixed Eurostat snapshot.\n",encoding="utf-8")
+    (stage/"README.txt").write_text("Reproduced analysis package. The numeric directory contains baseline results, figure source data, and extended machine-readable publication evidence generated from the fixed Eurostat snapshot.\n",encoding="utf-8")
     if receipt_json and git_commit:
         raise RuntimeError("Use either a supplied receipt or a Git-bound public receipt, not both")
     if receipt_json:
@@ -227,11 +227,36 @@ PUBLICATION_FIGURE_STEMS = [
     "figure_s1_temporal_concordance_matrices","figure_s2_geography_representation_shifts","figure_s3_geography_progress_scores",
     "figure_s4_progress_score_geometry","figure_s5_broader_robustness_summary","figure_s6_sign_flip_overlap","figure_s7_country_discordance_matrix",
 ]
+PUBLICATION_SUPPLEMENTARY_DATA = [
+    "symmetric_grid_and_temporal_effects.csv",
+    "all_monotone_paths.csv",
+    "within_axis_concordance.csv",
+    "country_point_sign_and_loyo_stability.csv",
+    "point_sign_disagreement_loyo_cases.csv",
+    "point_sign_disagreement_loyo_summary.csv",
+    "theil_sen_country_signs.csv",
+    "theil_sen_disagreement_cases.csv",
+    "theil_sen_disagreement_summary.csv",
+    "trend_interval_diagnostics.csv",
+    "trend_interval_counts.csv",
+    "source_status_audit.csv",
+    "rmc_country_method_registry.csv",
+    "rmc_official_evidence_register.csv",
+    "bootstrap_config.json",
+    "bootstrap_grid_summary.csv",
+    "bootstrap_endpoint_summary.csv",
+    "bootstrap_country_rank_diagnostic_intervals.csv",
+    "bootstrap_slope_favorable_frequencies.csv",
+    "bootstrap_sign_disagreement_frequencies.csv",
+    "bootstrap_rank_displacement_diagnostics.csv",
+    "software_and_method.json",
+]
 
 def publication_relpaths():
     rels=[]
     rels += [Path("results/reference/tables")/x for x in PUBLICATION_MAIN_TABLES]
     rels += [Path("supplementary_tables")/x for x in PUBLICATION_SUPPLEMENT_TABLES]
+    rels += [Path("supplementary_data")/x for x in PUBLICATION_SUPPLEMENTARY_DATA]
     rels += [Path("figures/source_data")/f"{x}.csv" for x in PUBLICATION_FIGURE_STEMS]
     rels += [Path("figures/reference")/f"{x}.{ext}" for x in PUBLICATION_FIGURE_STEMS for ext in ["pdf","png","svg"]]
     rels += [Path("MAP_JOIN_PARITY.csv")]
@@ -342,7 +367,14 @@ def compare_publication(repo_root, publication_dir):
     mismatches=[]
     rels=publication_relpaths()
     for rel in rels:
-        actual=publication_dir/rel; expected=repo_root/rel
+        actual=publication_dir/rel
+        # Extended supplementary evidence is stored once in the repository under
+        # results/reference/supplementary_data. Reproduced publication packages
+        # expose the same files under supplementary_data/.
+        if len(rel.parts)>=2 and rel.parts[0]=="supplementary_data":
+            expected=repo_root/"results"/"reference"/rel
+        else:
+            expected=repo_root/rel
         if not actual.is_file():
             mismatches.append((rel.as_posix(),"missing_reproduced_file")); continue
         if not expected.is_file():
@@ -378,9 +410,9 @@ def package_publication(repo_root, publication_dir, output_zip):
     receipt=repo_root/"work"/"analysis_receipt.json"
     if receipt.is_file():
         json.loads(receipt.read_text(encoding="utf-8")); shutil.copy2(receipt,stage/"run_receipt.json")
-    validation={"status":"PASS","reference_publication_files_compared":n,"publication_output_differences":0,"main_table_sources":4,"supplement_table_sources":8,"figure_source_data":13,"figure_artwork_files":39,"map_join_parity_files":1}
+    validation={"status":"PASS","reference_publication_files_compared":n,"publication_output_differences":0,"main_table_sources":4,"supplement_table_sources":8,"supplementary_machine_readable_evidence_files":len(PUBLICATION_SUPPLEMENTARY_DATA),"figure_source_data":13,"figure_artwork_files":39,"map_join_parity_files":1}
     (stage/"validation.json").write_text(json.dumps(validation,indent=2,sort_keys=True)+"\n",encoding="utf-8")
-    (stage/"README.txt").write_text("Reproduced final publication layer: manuscript table sources, Supplement table sources, figure source data, publication artwork, and map-join parity output. All required files were validated against the checked-in reference publication files before packaging. Publication CSV values use the declared 1e-12 numerical tolerance with exact schema/text semantics; PNG previews are pixel-identical; vector PDF/SVG files are checked structurally, with only insignificant SVG coordinate serialization tolerated.\n",encoding="utf-8")
+    (stage/"README.txt").write_text("Reproduced final publication layer: manuscript table sources, Supplement table sources, machine-readable supplementary evidence, figure source data, publication artwork, and map-join parity output. All required files were validated against the checked-in reference publication files before packaging. Publication CSV values use the declared 1e-12 numerical tolerance with exact schema/text semantics; PNG previews are pixel-identical; vector PDF/SVG files are checked structurally, with only insignificant SVG coordinate serialization tolerated.\n",encoding="utf-8")
     write_checksums(stage); deterministic_zip(stage,output_zip)
     return n
 

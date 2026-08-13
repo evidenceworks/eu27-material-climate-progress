@@ -14,6 +14,8 @@ A production/residence greenhouse-gas series is retained for a diagnostic accoun
 
 `data/sources.csv` records, for each source entry, the Eurostat datacode, API query URL, resolved selectors, coverage, raw filename, and raw SHA-256. `data/data_dictionary.csv` documents the analysis fields. `data/panel_2010_2023.csv` is the reference analytic panel used to verify reconstruction from the fixed source responses.
 
+For RMC, `data/provenance/` stores a source-controlled official-evidence register and a conservative country-level source/method registry. These records retain exact evidence locators and explicitly identify unresolved year-level boundaries; runtime reproduction does not infer method from observation-status flags or require live web access.
+
 The fixed snapshot is included because Eurostat data may be revised and the live dissemination database serves the latest dataset version rather than a historical version of the database state used for this analysis. Author transformations from the stored responses to the analytic panel are implemented in `code/01_prepare_data.py` and checked against the reference panel.
 
 ## Reuse and attribution

@@ -103,7 +103,7 @@ L 233.893111 10.808652
      </g>
     </g>
     <g id="text_5">
-     <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle" x="171.251098" y="235.483996" transform="rotate(-0 171.251098 235.483996)">Overall representation contrast</text>
+     <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle" x="171.251098" y="235.483996" transform="rotate(-0 171.251098 235.483996)">Selected endpoint difference</text>
     </g>
    </g>
    <g id="matplotlib.axis_2">
@@ -119,7 +119,7 @@ L -3.5 0
       </g>
      </g>
      <g id="text_6">
-      <text style="font-size: 6.2px; font-family: 'DejaVu Sans'; text-anchor: end" x="96.786531" y="22.362168" transform="rotate(-0 96.786531 22.362168)">Primary 2010–2023</text>
+      <text style="font-size: 6.2px; font-family: 'DejaVu Sans'; text-anchor: end" x="96.786531" y="22.362168" transform="rotate(-0 96.786531 22.362168)">Full 2010–2023</text>
      </g>
     </g>
     <g id="ytick_2">
@@ -278,7 +278,7 @@ z
     </g>
    </g>
    <g id="text_14">
-    <text style="font-size: 5.8px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #e69f00" x="165.414886" y="6.567094" transform="rotate(-0 165.414886 6.567094)">Primary 2010–2023 = 0.596</text>
+    <text style="font-size: 5.8px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #e69f00" x="165.414886" y="6.567094" transform="rotate(-0 165.414886 6.567094)">Full 2010–2023 reference = 0.596</text>
    </g>
   </g>
  </g>

@@ -1,21 +1,15 @@
-panel,period_or_diagnostic,estimand,min_value,max_value,sign_reversals
-A_temporal,FULL_2010_2023,D1: CMUR → DMC,0.3144078144078144,0.3144078144078144,0
-A_temporal,FULL_2010_2023,D2: DMC → RMC,0.1300366300366299,0.1300366300366299,0
-A_temporal,FULL_2010_2023,D3: Territorial → consumption-based GHG,0.1514041514041515,0.1514041514041515,0
-A_temporal,FULL_2010_2023,Overall representation contrast,0.5958485958485958,0.5958485958485958,0
-A_temporal,EARLY_2010_2016,D1: CMUR → DMC,0.4659098696950756,0.4659098696950756,0
-A_temporal,EARLY_2010_2016,D2: DMC → RMC,0.1843711843711843,0.1843711843711843,0
-A_temporal,EARLY_2010_2016,D3: Territorial → consumption-based GHG,0.2496947496947497,0.2496947496947497,0
-A_temporal,EARLY_2010_2016,Overall representation contrast,0.8999758037610097,0.8999758037610097,0
-A_temporal,LATE_2017_2023,D1: CMUR → DMC,0.5061050061050061,0.5061050061050061,0
-A_temporal,LATE_2017_2023,D2: DMC → RMC,-0.1794871794871795,-0.1794871794871795,0
-A_temporal,LATE_2017_2023,D3: Territorial → consumption-based GHG,0.0073260073260074,0.0073260073260074,0
-A_temporal,LATE_2017_2023,Overall representation contrast,0.333943833943834,0.333943833943834,0
-B_full_robustness,primary_FULL,Overall representation contrast,0.5958485958485958,0.5958485958485958,0
-B_full_robustness,LOCO,Overall representation contrast,0.4697435897435896,0.7329914529914529,0
-B_full_robustness,LOYO,Overall representation contrast,0.5341880341880343,0.6282051282051283,0
-B_full_robustness,CMUR_even_year,Overall representation contrast,0.5695970695970696,0.5695970695970696,0
-B_full_robustness,published_pc,Overall representation contrast,0.6031746031746031,0.6031746031746031,0
-B_full_robustness,common_log_CMUR,Overall representation contrast,0.7960927960927962,0.7960927960927962,0
-B_full_robustness,Theil_Sen,Overall representation contrast,0.7148962148962148,0.7148962148962148,0
-B_full_robustness,total_scale,Overall representation contrast,0.4304029304029304,0.4304029304029304,0
+panel,evidence_class,period_or_diagnostic,estimand,min_value,max_value,sign_reversals,interpretation
+A_temporal,temporal_heterogeneity,FULL_2010_2023,Full-grid range,0.6037851037851037,0.6037851037851037,0,Six-cell symmetric spread
+A_temporal,temporal_heterogeneity,FULL_2010_2023,Selected endpoint cell difference,0.5958485958485958,0.5958485958485958,0,Secondary descriptive endpoint
+A_temporal,temporal_heterogeneity,EARLY_2010_2016,Full-grid range,0.8999758037610097,0.8999758037610097,0,Six-cell symmetric spread
+A_temporal,temporal_heterogeneity,EARLY_2010_2016,Selected endpoint cell difference,0.8999758037610097,0.8999758037610097,0,Secondary descriptive endpoint
+A_temporal,temporal_heterogeneity,LATE_2017_2023,Full-grid range,0.5122100122100122,0.5122100122100122,0,Six-cell symmetric spread
+A_temporal,temporal_heterogeneity,LATE_2017_2023,Selected endpoint cell difference,0.333943833943834,0.333943833943834,0,Secondary descriptive endpoint
+B_full_checks,full_reference,FULL_2010_2023,Selected endpoint cell difference,0.5958485958485958,0.5958485958485958,0,Full-period selected-endpoint reference; secondary descriptive object
+B_full_checks,deletion_robustness,LOCO,Selected endpoint cell difference,0.4697435897435896,0.7329914529914529,0,Deletion perturbation; endpoint estimand unchanged
+B_full_checks,deletion_robustness,LOYO,Selected endpoint cell difference,0.5341880341880343,0.6282051282051283,0,Deletion perturbation; endpoint estimand unchanged
+B_full_checks,temporal_support_convention,CMUR_even_year,Selected endpoint cell difference,0.5695970695970696,0.5695970695970696,0,Common even-year sensitivity
+B_full_checks,denominator_convention,published_pc,Selected endpoint cell difference,0.6031746031746031,0.6031746031746031,0,Published per-capita convention
+B_full_checks,scale_or_estimand_convention,common_log_CMUR,Selected endpoint cell difference,0.7960927960927962,0.7960927960927962,0,Common-log CMUR convention
+B_full_checks,estimator_sensitivity,Theil_Sen,Selected endpoint cell difference,0.7148962148962148,0.7148962148962148,0,Theil–Sen estimator
+B_full_checks,scale_or_estimand_convention,total_scale,Selected endpoint cell difference,0.4304029304029304,0.4304029304029304,0,National-total scale convention

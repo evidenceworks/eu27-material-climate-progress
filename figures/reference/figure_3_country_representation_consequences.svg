@@ -730,7 +730,7 @@ L 182.996376 2.16
 " style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
    </g>
    <g id="text_31">
-    <text style="font-size: 5.3px; font-family: 'DejaVu Sans'; text-anchor: start" x="37.5586" y="378.138821" transform="rotate(-0 37.5586 378.138821)">corner mark = progress-sign disagreement</text>
+    <text style="font-size: 5.3px; font-family: 'DejaVu Sans'; text-anchor: start" x="37.5586" y="378.138821" transform="rotate(-0 37.5586 378.138821)">corner mark = point-slope sign disagreement</text>
    </g>
    <g id="text_32">
     <text style="font-size: 5.15px; font-family: 'DejaVu Sans'; text-anchor: middle" x="42.882912" y="9.909078" transform="rotate(-0 42.882912 9.909078)">+4</text>

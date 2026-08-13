@@ -7,3 +7,4 @@ pyshp
 shapely
 pyproj
 Pillow
+statsmodels

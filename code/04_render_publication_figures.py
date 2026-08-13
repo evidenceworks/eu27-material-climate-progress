@@ -9,7 +9,7 @@ into publication-facing tables/figures.
 from __future__ import annotations
 
 from pathlib import Path
-import argparse, ast, hashlib, math, tempfile, zipfile
+import argparse, ast, hashlib, math, shutil, tempfile, zipfile
 import numpy as np
 import pandas as pd
 import matplotlib
@@ -109,207 +109,219 @@ def _cell_rows_from_wide(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def build_publication_sources(analysis: Path, output_root: Path) -> None:
-    """Create publication source CSVs from the analysis outputs."""
-    figsd = output_root / "figures" / "source_data"
-    tables = output_root / "results" / "reference" / "tables"
-    supp = output_root / "supplementary_tables"
-    figsd.mkdir(parents=True, exist_ok=True); tables.mkdir(parents=True, exist_ok=True); supp.mkdir(parents=True, exist_ok=True)
+    """Create publication source files from validated analysis and extended evidence outputs."""
+    figsd=output_root/'figures'/'source_data'; tables=output_root/'results'/'reference'/'tables'; supp=output_root/'supplementary_tables'; suppdata=output_root/'supplementary_data'
+    for d in [figsd,tables,supp,suppdata]: d.mkdir(parents=True,exist_ok=True)
 
-    main = _read(analysis, "tables/main_results.csv")
-    country = _primary_country(analysis)
-    rg = _read(analysis, "tables/representation_grid.csv")
-    rank_summary = _read(analysis, "tables/country_rank_change_summary.csv")
-    robustness = _read(analysis, "supplementary/robustness_summary.csv")
-    loco = _read(analysis, "supplementary/leave_one_country_out.csv")
-    loyo = _read(analysis, "supplementary/leave_one_year_out.csv")
-    cmur_even = _read(analysis, "supplementary/cmur_even_year.csv")
+    main=_read(analysis,'tables/main_results.csv')
+    country=_primary_country(analysis)
+    rg=_read(analysis,'tables/representation_grid.csv')
+    rank_summary=_read(analysis,'tables/country_rank_change_summary.csv')
+    robustness=_read(analysis,'supplementary/robustness_summary.csv')
+    loco=_read(analysis,'supplementary/leave_one_country_out.csv')
+    loyo=_read(analysis,'supplementary/leave_one_year_out.csv')
+    cmur_even=_read(analysis,'supplementary/cmur_even_year.csv')
+    ext=analysis/'supplementary_data'
+    if not ext.is_dir(): raise RuntimeError('Extended publication evidence is missing; run code/05_build_extended_publication_evidence.py first')
+    sym=pd.read_csv(ext/'symmetric_grid_and_temporal_effects.csv')
+    paths=pd.read_csv(ext/'all_monotone_paths.csv')
+    within=pd.read_csv(ext/'within_axis_concordance.csv')
+    loyo_summary=pd.read_csv(ext/'point_sign_disagreement_loyo_summary.csv')
+    source_status=pd.read_csv(ext/'source_status_audit.csv')
+    trend_interval_counts=pd.read_csv(ext/'trend_interval_counts.csv')
+    rmc_registry=pd.read_csv(ext/'rmc_country_method_registry.csv')
+    rmc_status=_read(analysis,'supplementary/rmc_status.csv')
 
-    # MAIN Table 2: source facts, with units/provenance aligned to the validated data dictionary.
-    t2 = pd.DataFrame([
-        ["CMUR","env_ac_cur","Circular material use rate","Percent","OLS slope in percentage points/year","Higher is favorable","Economy-wide circular use share","Official Eurostat series; annual 2010–2023"],
-        ["DMC","env_ac_mfa","Domestic material consumption","Tonnes per capita","Negative OLS slope of log per-capita level","Lower is favorable","Domestic material consumption","Common average-population denominator used in primary analysis"],
-        ["RMC","env_ac_rme","Raw material consumption (material footprint)","Tonnes per capita","Negative OLS slope of log per-capita level","Lower is favorable","Consumption-side material footprint","Official Eurostat environmental-account series; status flags summarized in Table S7"],
-        ["Territorial GHG","sdg_13_10","Territorial greenhouse-gas emissions","Tonnes CO2e per capita","Negative OLS slope of log per-capita level","Lower is favorable","Territorial emissions excluding LULUCF and memo items","Common average-population denominator used in primary analysis"],
-        ["Consumption-based GHG footprint","cli_gge_foot","Consumption-based greenhouse-gas footprint","Tonnes CO2e per capita","Negative OLS slope of log per-capita level","Lower is favorable","Consumption-accounting footprint","Eurostat footprint series; common average-population denominator used in primary analysis"],
-    ], columns=["representation","official_dataset","construct","unit","primary_progress_metric","favorable_direction","accounting_boundary","status_provenance_note"])
-    t2.to_csv(tables/"table_2_representation_contract_source.csv", index=False)
+    # Copy all accepted machine-readable supplementary evidence into the publication layer.
+    for p in sorted(ext.iterdir()):
+        if p.is_file(): shutil.copy2(p,suppdata/p.name)
 
-    # MAIN Table 3: six FULL cells plus ordered contrasts.
-    r = main[main.period == "FULL_2010_2023"].iloc[0]
-    cells = [
-        ("a_CMUR_TERR","CMUR × Territorial GHG"),("b_DMC_TERR","DMC × Territorial GHG"),("c_RMC_TERR","RMC × Territorial GHG"),
-        ("d_CMUR_CFOOT","CMUR × Consumption-based GHG footprint"),("e_DMC_CFOOT","DMC × Consumption-based GHG footprint"),("f_RMC_CFOOT","RMC × Consumption-based GHG footprint")]
-    rows=[]
-    for key,label in cells:
-        rows.append(["concordance",key,label,float(r[key]),"FULL_2010_2023","Spearman",27,"Ranks use deterministic 12-decimal canonicalization before tie handling"])
-    for key,label in [("D1_b_minus_a","D1: CMUR → DMC"),("D2_c_minus_b","D2: DMC → RMC"),("D3_f_minus_c","D3: Territorial → consumption-based GHG"),("D_TOTAL_f_minus_a","Overall representation contrast")]:
-        rows.append(["ordered_contrast",key,label,float(r[key]),"FULL_2010_2023","Difference in Spearman rho",27,"Ordered contrast of validated concordance cells"])
-    pd.DataFrame(rows,columns=["object_type","internal_key","public_label","value","period","metric","n_countries","tie_metadata"]).to_csv(tables/"table_3_primary_concordance_and_contrasts.csv",index=False)
+    # MAIN Table 2: explicit indicator/accounting taxonomy and provenance boundaries.
+    t2=pd.DataFrame([
+      ['CMUR','Material indicator: circularity share','Material-indicator / construct choice','Percent','OLS slope in percentage points/year','env_ac_cur','Official Eurostat indicator; annual 2010–2023'],
+      ['DMC','Direct material throughput','Material-indicator / construct choice; domestic side of material accounting-boundary comparison','Tonnes per capita','Negative OLS slope of log per-capita level','env_ac_mfa','Official economy-wide material-flow account; common average-population denominator in primary analysis'],
+      ['RMC','Final-demand material footprint','Material accounting-boundary choice','Tonnes per capita','Negative OLS slope of log per-capita level','env_ac_rme','Official model-based environmental-account series; country production routes can differ and cross-country comparability requires qualification'],
+      ['Territorial GHG','Territorial greenhouse-gas inventory measure','GHG accounting-perspective choice','Tonnes CO2e per capita','Negative OLS slope of log per-capita level','sdg_13_10','Official territorial series; common average-population denominator in primary analysis'],
+      ['Consumption-based GHG footprint','Final-demand greenhouse-gas footprint','GHG accounting-perspective choice','Tonnes CO2e per capita','Negative OLS slope of log per-capita level','cli_gge_foot','Model-assisted Eurostat footprint series using a common modelling method across countries; complete series is re-estimated with releases'],
+    ],columns=['representation','scientific_role','construct_or_accounting_choice_category','unit','primary_progress_scale','official_source','model_or_provenance_note'])
+    t2.to_csv(tables/'table_2_representation_contract_source.csv',index=False)
 
-    # MAIN Table 4: validated summary only; no new country-consequence statistic is added.
-    t4 = rank_summary.rename(columns={
-        "substitution":"representation_substitution","max_country":"country_at_maximum","sign_flips_n":"progress_sign_disagreements_n"})
-    labelmap={"CMUR_to_DMC":"CMUR → DMC","DMC_to_RMC":"DMC → RMC","TERR_to_CFOOT":"Territorial → consumption-based GHG"}
-    t4.insert(1,"public_label",t4.representation_substitution.map(labelmap))
-    t4.to_csv(tables/"table_4_country_consequences.csv",index=False)
+    # MAIN Table 3: symmetric Full-grid system; the selected endpoint is explicitly secondary.
+    full=sym[sym.period=='FULL_2010_2023'].copy(); rows=[]
+    order=['grid_cell','full_grid_minimum','full_grid_maximum','full_grid_range','material_simple_difference','climate_simple_difference','selected_endpoint_cell_difference']
+    for typ in order:
+        for _,rr in full[full.object_type==typ].iterrows():
+            note='Primary symmetric system-level evidence'
+            if typ=='selected_endpoint_cell_difference': note='Secondary descriptive difference between two selected grid cells'
+            elif typ in ('material_simple_difference','climate_simple_difference'): note='Descriptive conditional difference; not a causal effect'
+            rows.append(['A_full_grid',typ,rr.effect,float(rr.value),'Spearman rho' if typ in ('grid_cell','full_grid_minimum','full_grid_maximum') else 'Difference in Spearman rho',27,note])
+    for _,rr in within.iterrows():
+        rows.append(['B_within_axis','within_axis_concordance',rr.comparison,float(rr.spearman),'Spearman rho',27,'Calibration of similarity between country progress orderings within an axis'])
+    pd.DataFrame(rows,columns=['panel','object_type','public_label','value','metric','n_countries','interpretation_note']).to_csv(tables/'table_3_primary_concordance_and_contrasts.csv',index=False)
 
-    # MAIN Table 5: long-format temporal and robustness evidence.
+    # MAIN Table 4: existing rank arithmetic plus point-slope sign and LOYO stability.
+    labelmap={'CMUR_to_DMC':'CMUR → DMC','DMC_to_RMC':'DMC → RMC','TERR_to_CFOOT':'Territorial → consumption-based GHG'}
+    t4=rank_summary.rename(columns={'substitution':'comparison_key','max_country':'country_at_maximum','sign_flips_n':'point_slope_sign_disagreements_n'}).copy()
+    t4.insert(1,'comparison',t4.comparison_key.map(labelmap))
+    stable=loyo_summary[['comparison_key','both_sign_loyo_stable_n','disagreement_denominator_n','both_sign_loyo_stable_fraction']]
+    t4=t4.merge(stable,on='comparison_key',how='left',validate='one_to_one')
+    t4.to_csv(tables/'table_4_country_consequences.csv',index=False)
+
+    # MAIN Table 5: temporal range + secondary endpoint, then check families by what they change. Bootstrap stays outside MAIN.
     t5=[]
-    for _,rr in main.iterrows():
-        for key,label in [("D1_b_minus_a","D1: CMUR → DMC"),("D2_c_minus_b","D2: DMC → RMC"),("D3_f_minus_c","D3: Territorial → consumption-based GHG"),("D_TOTAL_f_minus_a","Overall representation contrast")]:
-            t5.append(["A_temporal",rr.period,label,float(rr[key]),float(rr[key]),0])
-    # Primary and selected robustness rows for D_TOTAL.
-    full=float(main[main.period=="FULL_2010_2023"].iloc[0].D_TOTAL_f_minus_a)
-    t5.append(["B_full_robustness","primary_FULL","Overall representation contrast",full,full,0])
-    for _,rr in robustness[robustness.estimand=="D_TOTAL_f_minus_a"].iterrows():
-        t5.append(["B_full_robustness",rr.diagnostic,"Overall representation contrast",float(rr["min"]),float(rr["max"]),int(rr.sign_reversals)])
-    # Common even-year is a validated standalone sensitivity.
-    if len(cmur_even)==1:
-        v=float(cmur_even.iloc[0].D_TOTAL_f_minus_a)
-        t5.append(["B_full_robustness","CMUR_even_year","Overall representation contrast",v,v,0])
-    pd.DataFrame(t5,columns=["panel","period_or_diagnostic","estimand","min_value","max_value","sign_reversals"]).drop_duplicates().to_csv(tables/"table_5_temporal_and_robustness.csv",index=False)
+    for period in PERIOD_ORDER:
+        q=sym[sym.period==period]
+        rnge=float(q[q.object_type=='full_grid_range'].iloc[0].value)
+        ep=float(q[q.object_type=='selected_endpoint_cell_difference'].iloc[0].value)
+        t5.append(['A_temporal','temporal_heterogeneity',period,'Full-grid range',rnge,rnge,0,'Six-cell symmetric spread'])
+        t5.append(['A_temporal','temporal_heterogeneity',period,'Selected endpoint cell difference',ep,ep,0,'Secondary descriptive endpoint'])
+    base=float(full[full.object_type=='selected_endpoint_cell_difference'].iloc[0].value)
+    t5.append(['B_full_checks','full_reference','FULL_2010_2023','Selected endpoint cell difference',base,base,0,'Full-period selected-endpoint reference; secondary descriptive object'])
+    for _,rr in robustness[robustness.estimand=='D_TOTAL_f_minus_a'].iterrows():
+        if rr.diagnostic not in ('LOCO','LOYO'): continue
+        t5.append(['B_full_checks','deletion_robustness',rr.diagnostic,'Selected endpoint cell difference',float(rr['min']),float(rr['max']),int(rr.sign_reversals),'Deletion perturbation; endpoint estimand unchanged'])
+    fixed=[
+      ('CMUR_even_year','temporal_support_convention','Common even-year sensitivity'),
+      ('published_pc','denominator_convention','Published per-capita convention'),
+      ('common_log_CMUR','scale_or_estimand_convention','Common-log CMUR convention'),
+      ('Theil_Sen','estimator_sensitivity','Theil–Sen estimator'),
+      ('total_scale','scale_or_estimand_convention','National-total scale convention')]
+    for key,klass,label in fixed:
+        if key=='CMUR_even_year': v=float(cmur_even.iloc[0].D_TOTAL_f_minus_a)
+        else:
+            q=robustness[(robustness.diagnostic==key)&(robustness.estimand=='D_TOTAL_f_minus_a')]
+            if len(q)!=1: raise RuntimeError(f'Missing robustness row {key}')
+            v=float(q.iloc[0]['min'])
+        t5.append(['B_full_checks',klass,key,'Selected endpoint cell difference',v,v,0,label])
+    pd.DataFrame(t5,columns=['panel','evidence_class','period_or_diagnostic','estimand','min_value','max_value','sign_reversals','interpretation']).to_csv(tables/'table_5_temporal_and_robustness.csv',index=False)
 
-    # Supplement Table S1: source series and human-readable unit/role support.
-    sources=pd.read_csv(ROOT/"data"/"sources.csv")
-    dd=pd.read_csv(ROOT/"data"/"data_dictionary.csv")
-    s1=sources[["source_id","dataset","role","raw_file","api_query","resolved_selectors","rows","countries","years"]].copy()
-    def _selector_label(raw, dimension):
+    # Supplement Table S1: source registry retained with compact provenance note.
+    sources=pd.read_csv(ROOT/'data'/'sources.csv')
+    s1=sources[['source_id','dataset','role','raw_file','api_query','resolved_selectors','rows','countries','years']].copy()
+    def _selector_label(raw,dimension):
         try:
             items=ast.literal_eval(raw) if isinstance(raw,str) else []
             for item in items:
-                if item.get("dimension")==dimension:
-                    return item.get("label") or item.get("code") or ""
-        except Exception:
-            return ""
-        return ""
-    s1["unit"]=s1.resolved_selectors.map(lambda x:_selector_label(x,"unit"))
-    s1.loc[s1.source_id.eq("average_population_demo_gind") & s1.unit.eq(""),"unit"]="Persons (average population)"
-    s1["indicator_or_measure"]=s1["role"]
-    s1["provenance_note"]="Frozen Eurostat API response included in data/raw; source query and resolved selectors recorded in data/sources.csv"
-    s1=s1[["source_id","dataset","indicator_or_measure","unit","role","raw_file","api_query","rows","countries","years","provenance_note"]]
-    s1.to_csv(supp/"table_s1_sources_units_provenance.csv",index=False)
+                if item.get('dimension')==dimension: return item.get('label') or item.get('code') or ''
+        except Exception: return ''
+        return ''
+    s1['unit']=s1.resolved_selectors.map(lambda x:_selector_label(x,'unit'))
+    s1.loc[s1.source_id.eq('average_population_demo_gind')&s1.unit.eq(''),'unit']='Persons (average population)'
+    s1['indicator_or_measure']=s1['role']; s1['provenance_note']='Frozen Eurostat response in data/raw; exact query and resolved selectors recorded in data/sources.csv'
+    s1=s1[['source_id','dataset','indicator_or_measure','unit','role','raw_file','api_query','rows','countries','years','provenance_note']]
+    s1.to_csv(supp/'table_s1_sources_units_provenance.csv',index=False)
 
-    # S2 detailed temporal matrices.
-    s2=_cell_rows_from_wide(main)
-    s2["period_label"]=s2.period.map(PERIOD_LABEL)
-    s2.to_csv(supp/"table_s2_temporal_concordance_matrices.csv",index=False)
-
-    # S3 Kendall/Pearson companions, with related Spearman reference.
-    comp=[]
-    base=rg[(rg.spec=="primary_common_pc")&(rg.estimator=="OLS")&(rg.cmur_mode=="pp")]
+    # S2 and S3 remain the detailed temporal grid and companion correlations.
+    s2=_cell_rows_from_wide(main); s2['period_label']=s2.period.map(PERIOD_LABEL); s2.to_csv(supp/'table_s2_temporal_concordance_matrices.csv',index=False)
+    comp=[]; base_rg=rg[(rg.spec=='primary_common_pc')&(rg.estimator=='OLS')&(rg.cmur_mode=='pp')]
     for period in PERIOD_ORDER:
-        sr=base[(base.period==period)&(base.correlation=="spearman")].iloc[0]
-        for corr in ["kendall","pearson"]:
-            rr=base[(base.period==period)&(base.correlation==corr)].iloc[0]
-            for key,mat,clim in [("a_CMUR_TERR","CMUR","Territorial GHG"),("b_DMC_TERR","DMC","Territorial GHG"),("c_RMC_TERR","RMC","Territorial GHG"),("d_CMUR_CFOOT","CMUR","Consumption-based GHG footprint"),("e_DMC_CFOOT","DMC","Consumption-based GHG footprint"),("f_RMC_CFOOT","RMC","Consumption-based GHG footprint")]:
-                comp.append([period,mat,clim,corr,float(rr[key]),float(sr[key]),27])
-    pd.DataFrame(comp,columns=["period","material_representation","climate_perspective","correlation","correlation_value","spearman_reference","n_countries"]).to_csv(supp/"table_s3_companion_correlations.csv",index=False)
+        sr=base_rg[(base_rg.period==period)&(base_rg.correlation=='spearman')].iloc[0]
+        for cr in ['kendall','pearson']:
+            rr=base_rg[(base_rg.period==period)&(base_rg.correlation==cr)].iloc[0]
+            for key,mat,clim in [('a_CMUR_TERR','CMUR','Territorial GHG'),('b_DMC_TERR','DMC','Territorial GHG'),('c_RMC_TERR','RMC','Territorial GHG'),('d_CMUR_CFOOT','CMUR','Consumption-based GHG footprint'),('e_DMC_CFOOT','DMC','Consumption-based GHG footprint'),('f_RMC_CFOOT','RMC','Consumption-based GHG footprint')]:
+                comp.append([period,mat,clim,cr,float(rr[key]),float(sr[key]),27])
+    pd.DataFrame(comp,columns=['period','material_representation','climate_perspective','correlation','correlation_value','spearman_reference','n_countries']).to_csv(supp/'table_s3_companion_correlations.csv',index=False)
 
-    # S4 detailed ordered contrasts.
+    # S4: all monotone paths plus symmetric Early/Late effects; path allocation is explicitly descriptive.
     s4=[]
-    for _,rr in main.iterrows():
-        for key,label in [("D1_b_minus_a","D1: CMUR → DMC"),("D2_c_minus_b","D2: DMC → RMC"),("D3_f_minus_c","D3: Territorial → consumption-based GHG"),("D_TOTAL_f_minus_a","Overall representation contrast")]:
-            s4.append([rr.period,key,label,float(rr[key]),float(rr.identity_D_sum_error) if "identity_D_sum_error" in rr.index else 0.0])
-    pd.DataFrame(s4,columns=["period","internal_key","public_label","value","identity_check_error"]).to_csv(supp/"table_s4_temporal_ordered_contrasts.csv",index=False)
+    for _,rr in paths.iterrows():
+        s4.append(['monotone_path','FULL_2010_2023',rr.path,int(rr.step_number),rr.step_sequence,float(rr.step_value),float(rr.path_sum),float(rr.selected_endpoint_difference),'Path allocation is descriptive; all allowed paths share the same selected endpoint sum'])
+    for period in ['EARLY_2010_2016','LATE_2017_2023']:
+        q=sym[(sym.period==period)&sym.object_type.isin(['full_grid_range','material_simple_difference','climate_simple_difference','selected_endpoint_cell_difference'])]
+        for _,rr in q.iterrows(): s4.append(['symmetric_temporal',period,'',0,rr.effect,float(rr.value),np.nan,np.nan,'Descriptive temporal heterogeneity; no structural-break interpretation'])
+    pd.DataFrame(s4,columns=['record_type','period','path','step_number','public_label','value','path_sum','selected_endpoint_difference','interpretation']).to_csv(supp/'table_s4_temporal_ordered_contrasts.csv',index=False)
 
-    # S5 extended robustness: validated full-period specifications + LOCO/LOYO ranges + common even-year sensitivity.
-    s5=[]
-    full_rg=rg[(rg.period=="FULL_2010_2023")&(rg.correlation=="spearman")]
+    # S5: two bindable panels within the existing S1-S8 Supplement architecture.
+    # Panel A retains selected-endpoint convention/deletion evidence as secondary descriptive output.
+    # Panel B binds the compact OLS/HC3/HAC trend-interval count summary; country-level intervals remain DATA_ONLY.
+    s5=[]; full_rg=rg[(rg.period=='FULL_2010_2023')&(rg.correlation=='spearman')]
     for _,rr in full_rg.iterrows():
         key=f"{rr.spec}|{rr.estimator}|{rr.cmur_mode}"
-        for e in ["D1_b_minus_a","D2_c_minus_b","D3_f_minus_c","D_TOTAL_f_minus_a"]:
-            s5.append(["fixed_specification",key,e,float(rr[e]),float(rr[e]),0])
-    for _,rr in robustness.iterrows():
-        s5.append(["deletion_range",rr.diagnostic,rr.estimand,float(rr["min"]),float(rr["max"]),int(rr.sign_reversals)])
+        klass='estimator_sensitivity' if rr.estimator=='THEIL_SEN' else ('denominator_convention' if rr.spec=='published_pc' else ('scale_or_estimand_convention' if rr.spec=='total_scale' or rr.cmur_mode=='log' else 'full_reference'))
+        s5.append(['A_selected_endpoint_sensitivity',klass,key,'','','selected_endpoint_cell_difference',float(rr.D_TOTAL_f_minus_a),float(rr.D_TOTAL_f_minus_a),0,np.nan,np.nan,'Selected endpoint is secondary descriptive evidence'])
+    for _,rr in robustness[robustness.estimand=='D_TOTAL_f_minus_a'].iterrows():
+        if rr.diagnostic in ('LOCO','LOYO'):
+            s5.append(['A_selected_endpoint_sensitivity','deletion_robustness',rr.diagnostic,'','','selected_endpoint_cell_difference',float(rr['min']),float(rr['max']),int(rr.sign_reversals),np.nan,np.nan,'Deletion perturbation; endpoint estimand unchanged'])
     ce=cmur_even.iloc[0]
-    for e in ["D1_b_minus_a","D2_c_minus_b","D3_f_minus_c","D_TOTAL_f_minus_a"]:
-        s5.append(["fixed_specification","CMUR_even_year",e,float(ce[e]),float(ce[e]),0])
-    pd.DataFrame(s5,columns=["record_type","specification","estimand","min_value","max_value","sign_reversals"]).to_csv(supp/"table_s5_extended_robustness.csv",index=False)
+    s5.append(['A_selected_endpoint_sensitivity','temporal_support_convention','CMUR_even_year','','','selected_endpoint_cell_difference',float(ce.D_TOTAL_f_minus_a),float(ce.D_TOTAL_f_minus_a),0,np.nan,np.nan,'Common even-year temporal-support convention'])
+    for _,rr in trend_interval_counts.iterrows():
+        s5.append(['B_trend_interval_summary','trend_interval_summary',f"{rr.representation}|{rr.method}",rr.representation,rr.method,'trend_interval_excludes_zero_count',np.nan,np.nan,np.nan,int(rr.interval_excludes_zero_n),int(rr.total_countries),'Compact interval summary only; not a significant/non-significant country classification'])
+    pd.DataFrame(s5,columns=['panel','evidence_class','specification','representation','method','estimand','min_value','max_value','sign_reversals','interval_excludes_zero_n','total_countries','interpretation']).drop_duplicates().to_csv(supp/'table_s5_extended_robustness.csv',index=False)
 
-    _read(analysis,"supplementary/accounting_bridge.csv").to_csv(supp/"table_s6_production_account_bridge.csv",index=False)
-    _read(analysis,"supplementary/rmc_status.csv").to_csv(supp/"table_s7_rmc_status_provenance.csv",index=False)
+    _read(analysis,'supplementary/accounting_bridge.csv').to_csv(supp/'table_s6_production_account_bridge.csv',index=False)
 
-    # S8 concise diagnostics (summaries, not the full Data S1 detail dump).
+    # S7: conservative country provenance with exact source locator plus disseminated i-status counts.
+    s7=rmc_registry.merge(rmc_status[['geo','years_n','flag_i_n','blank_n','other_flag_n']],on='geo',how='left',validate='one_to_one')
+    s7.to_csv(supp/'table_s7_rmc_status_provenance.csv',index=False)
+
+    # S8: concise source-status and scale/tie summaries; detailed intervals/bootstrap stay in supplementary_data.
     s8=[]
-    pcs=_read(analysis,"supplementary/published_vs_common_rank_summary.csv")
-    for _,rr in pcs.iterrows():
-        s8.append(["published_vs_common",rr.period,rr.representation,"spearman_progress_common_vs_published",float(rr.spearman_progress_common_vs_published),""])
-        s8.append(["published_vs_common",rr.period,rr.representation,"mean_abs_rank_displacement",float(rr.mean_abs_rank_displacement),""])
-        s8.append(["published_vs_common",rr.period,rr.representation,"max_abs_rank_displacement",float(rr.max_abs_rank_displacement),""])
-    ties=_read(analysis,"supplementary/tie_audit.csv")
-    for _,rr in ties.iterrows():
-        note=f"{rr['variable']}; n_tied={int(rr['n_tied'])}; geos={rr['geos']}; raw_span={rr['raw_span']:.17g}"
-        s8.append(["tie_audit",rr.period,rr.spec,"canonical_value_12dp",float(rr.canonical_value_12dp),note])
-    s8.append(["CMUR_even_year","FULL_2010_2023","CMUR_even_year","D_TOTAL_f_minus_a",float(ce.D_TOTAL_f_minus_a),str(ce.years)])
-    total=full_rg[(full_rg.spec=="total_scale")&(full_rg.estimator=="OLS")&(full_rg.cmur_mode=="pp")]
-    if len(total)==1:
-        s8.append(["total_scale","FULL_2010_2023","total_scale","D_TOTAL_f_minus_a",float(total.iloc[0].D_TOTAL_f_minus_a),"Validated total-scale sensitivity"])
-    pd.DataFrame(s8,columns=["record_type","period","representation_or_spec","metric","value","notes"]).to_csv(supp/"table_s8_numeric_scale_diagnostics.csv",index=False)
+    for _,rr in source_status.iterrows(): s8.append(['source_status',rr.source,rr.status_code,float(rr['count']),rr.official_status_label])
+    pcs=_read(analysis,'supplementary/published_vs_common_rank_summary.csv')
+    for _,rr in pcs.iterrows(): s8.append(['published_vs_common',f"{rr.period}|{rr.representation}",'spearman_progress_common_vs_published',float(rr.spearman_progress_common_vs_published),''])
+    ties=_read(analysis,'supplementary/tie_audit.csv')
+    tie_groups=(ties.groupby(['period','spec','estimator','cmur_mode','variable'],dropna=False).size().reset_index(name='n_tie_groups'))
+    for _,rr in tie_groups.iterrows():
+        s8.append(['tie_audit',f"{rr.period}|{rr.spec}|{rr.estimator}|{rr.cmur_mode}|{rr.variable}",'n_tie_groups',float(rr.n_tie_groups),'12-decimal numerical canonicalization'])
+    pd.DataFrame(s8,columns=['diagnostic_group','context','metric','value','note']).to_csv(supp/'table_s8_numeric_scale_diagnostics.csv',index=False)
 
-    # Figure source data.
-    f1=[]
-    for key,mat,clim in [("a_CMUR_TERR","CMUR","Territorial GHG"),("b_DMC_TERR","DMC","Territorial GHG"),("c_RMC_TERR","RMC","Territorial GHG"),("d_CMUR_CFOOT","CMUR","Consumption-based GHG footprint"),("e_DMC_CFOOT","DMC","Consumption-based GHG footprint"),("f_RMC_CFOOT","RMC","Consumption-based GHG footprint")]:
-        f1.append([mat,clim,float(r[key])])
-    pd.DataFrame(f1,columns=["material_representation","climate_perspective","spearman_rho"]).to_csv(figsd/"figure_1_primary_concordance_grid.csv",index=False)
+    # Figure 1: symmetric Full 3×2 grid; values unchanged.
+    r=main[main.period=='FULL_2010_2023'].iloc[0]; f1=[]
+    for key,mat,clim in [('a_CMUR_TERR','CMUR','Territorial GHG'),('b_DMC_TERR','DMC','Territorial GHG'),('c_RMC_TERR','RMC','Territorial GHG'),('d_CMUR_CFOOT','CMUR','Consumption-based GHG footprint'),('e_DMC_CFOOT','DMC','Consumption-based GHG footprint'),('f_RMC_CFOOT','RMC','Consumption-based GHG footprint')]: f1.append([mat,clim,float(r[key])])
+    pd.DataFrame(f1,columns=['material_representation','climate_perspective','spearman_rho']).to_csv(figsd/'figure_1_primary_concordance_grid.csv',index=False)
 
-    # Figure 2: all-country rank geometry, six panels.
+    # Figure 2 unchanged.
     rr=[]
-    for mat in ["CMUR","DMC","RMC"]:
-        for clim,clabel in [("TERR","Territorial GHG"),("CFOOT","Consumption-based GHG footprint")]:
-            rho=float(r[["a_CMUR_TERR","b_DMC_TERR","c_RMC_TERR","d_CMUR_CFOOT","e_DMC_CFOOT","f_RMC_CFOOT"][["CMUR_TERR","DMC_TERR","RMC_TERR","CMUR_CFOOT","DMC_CFOOT","RMC_CFOOT"].index(f"{mat}_{clim}")]])
-            for _,cc in country.iterrows():
-                rr.append([f"{mat}_{clim}",f"{mat} × {clabel}",cc.geo,float(cc[f"rank_{mat}"]),float(cc[f"rank_{clim}"]),rho])
-    pd.DataFrame(rr,columns=["panel","panel_label","geo","material_rank","climate_rank","spearman_rho"]).to_csv(figsd/"figure_2_rank_concordance_geometry.csv",index=False)
+    for mat in ['CMUR','DMC','RMC']:
+        for clim,clabel in [('TERR','Territorial GHG'),('CFOOT','Consumption-based GHG footprint')]:
+            key={'CMUR_TERR':'a_CMUR_TERR','DMC_TERR':'b_DMC_TERR','RMC_TERR':'c_RMC_TERR','CMUR_CFOOT':'d_CMUR_CFOOT','DMC_CFOOT':'e_DMC_CFOOT','RMC_CFOOT':'f_RMC_CFOOT'}[f'{mat}_{clim}']
+            rho=float(r[key])
+            for _,cc in country.iterrows(): rr.append([f'{mat}_{clim}',f'{mat} × {clabel}',cc.geo,float(cc[f'rank_{mat}']),float(cc[f'rank_{clim}']),rho])
+    pd.DataFrame(rr,columns=['panel','panel_label','geo','material_rank','climate_rank','spearman_rho']).to_csv(figsd/'figure_2_rank_concordance_geometry.csv',index=False)
 
-    cc_cols=["geo","rank_shift_CMUR_to_DMC","rank_shift_DMC_to_RMC","rank_shift_TERR_to_CFOOT","sign_flip_CMUR_DMC","sign_flip_DMC_RMC","sign_flip_TERR_CFOOT"]
-    country[cc_cols].to_csv(figsd/"figure_3_country_representation_consequences.csv",index=False)
-    country[["geo","rank_CMUR","rank_DMC","rank_RMC","rank_TERR","rank_CFOOT"]].to_csv(figsd/"figure_4_geography_progress_ranks.csv",index=False)
-    main.to_csv(figsd/"figure_5_temporal_representation_sensitivity.csv",index=False)
+    # Figure 3/S2 point-estimate source; terminology is explicit while the arithmetic is unchanged.
+    cc=country[['geo','rank_shift_CMUR_to_DMC','rank_shift_DMC_to_RMC','rank_shift_TERR_to_CFOOT','sign_flip_CMUR_DMC','sign_flip_DMC_RMC','sign_flip_TERR_CFOOT']].copy()
+    cc=cc.rename(columns={'sign_flip_CMUR_DMC':'point_sign_disagreement_CMUR_DMC','sign_flip_DMC_RMC':'point_sign_disagreement_DMC_RMC','sign_flip_TERR_CFOOT':'point_sign_disagreement_TERR_CFOOT'})
+    cc.to_csv(figsd/'figure_3_country_representation_consequences.csv',index=False)
+    country[['geo','rank_CMUR','rank_DMC','rank_RMC','rank_TERR','rank_CFOOT']].to_csv(figsd/'figure_4_geography_progress_ranks.csv',index=False)
+    main[['role','period','a_CMUR_TERR','b_DMC_TERR','c_RMC_TERR','d_CMUR_CFOOT','e_DMC_CFOOT','f_RMC_CFOOT']].to_csv(figsd/'figure_5_temporal_representation_sensitivity.csv',index=False)
 
-    # Figure 6 deletion distribution: FULL + every FULL LOCO/LOYO realization, all four contrasts.
-    f6=[]
-    for e in ["D1_b_minus_a","D2_c_minus_b","D3_f_minus_c","D_TOTAL_f_minus_a"]:
-        f6.append([e,"FULL","FULL",float(r[e])])
-        for _,x in loco[loco.period=="FULL_2010_2023"].iterrows(): f6.append([e,"LOCO",str(x.omit_geo),float(x[e])])
-        for _,x in loyo[loyo.period=="FULL_2010_2023"].iterrows(): f6.append([e,"LOYO",str(int(x.omit_year)),float(x[e])])
-    pd.DataFrame(f6,columns=["estimand","source","omitted_unit","value"]).to_csv(figsd/"figure_6_deletion_robustness.csv",index=False)
+    # Figure 6: clean repurposing of the existing deletion evidence for the already-authorized selected endpoint only.
+    f6=[['FULL','FULL',float(r.D_TOTAL_f_minus_a)]]
+    for _,x in loco[loco.period=='FULL_2010_2023'].iterrows(): f6.append(['LOCO',str(x.omit_geo),float(x.D_TOTAL_f_minus_a)])
+    for _,x in loyo[loyo.period=='FULL_2010_2023'].iterrows(): f6.append(['LOYO',str(int(x.omit_year)),float(x.D_TOTAL_f_minus_a)])
+    pd.DataFrame(f6,columns=['source','omitted_unit','selected_endpoint_cell_difference']).to_csv(figsd/'figure_6_deletion_robustness.csv',index=False)
 
-    main.to_csv(figsd/"figure_s1_temporal_concordance_matrices.csv",index=False)
-    country[cc_cols].to_csv(figsd/"figure_s2_geography_representation_shifts.csv",index=False)
-    country[["geo","CMUR","DMC","RMC","TERR","CFOOT"]].to_csv(figsd/"figure_s3_geography_progress_scores.csv",index=False)
+    main[['role','period','a_CMUR_TERR','b_DMC_TERR','c_RMC_TERR','d_CMUR_CFOOT','e_DMC_CFOOT','f_RMC_CFOOT']].to_csv(figsd/'figure_s1_temporal_concordance_matrices.csv',index=False)
+    cc.to_csv(figsd/'figure_s2_geography_representation_shifts.csv',index=False)
+    country[['geo','CMUR','DMC','RMC','TERR','CFOOT']].to_csv(figsd/'figure_s3_geography_progress_scores.csv',index=False)
 
-    # S4 progress-score geometry with matching rank-correlation cells.
-    ps=[]
-    prow=_primary_grid_row(analysis,"pearson"); srow=_primary_grid_row(analysis,"spearman")
-    colkeys={"CMUR_TERR":"a_CMUR_TERR","DMC_TERR":"b_DMC_TERR","RMC_TERR":"c_RMC_TERR","CMUR_CFOOT":"d_CMUR_CFOOT","DMC_CFOOT":"e_DMC_CFOOT","RMC_CFOOT":"f_RMC_CFOOT"}
+    ps=[]; prow=_primary_grid_row(analysis,'pearson'); srow=_primary_grid_row(analysis,'spearman'); colkeys={'CMUR_TERR':'a_CMUR_TERR','DMC_TERR':'b_DMC_TERR','RMC_TERR':'c_RMC_TERR','CMUR_CFOOT':'d_CMUR_CFOOT','DMC_CFOOT':'e_DMC_CFOOT','RMC_CFOOT':'f_RMC_CFOOT'}
     for panel,key in colkeys.items():
-        mat,clim=panel.split("_")
-        for _,cc in country.iterrows():
-            ps.append([panel,cc.geo,float(cc[mat]),float(cc[clim]),float(srow[key]),float(prow[key])])
-    pd.DataFrame(ps,columns=["panel","geo","material_progress_score","climate_progress_score","spearman_rho","pearson_r"]).to_csv(figsd/"figure_s4_progress_score_geometry.csv",index=False)
+        mat,clim=panel.split('_')
+        for _,c0 in country.iterrows(): ps.append([panel,c0.geo,float(c0[mat]),float(c0[clim]),float(srow[key]),float(prow[key])])
+    pd.DataFrame(ps,columns=['panel','geo','material_progress_score','climate_progress_score','spearman_rho','pearson_r']).to_csv(figsd/'figure_s4_progress_score_geometry.csv',index=False)
 
-    # S5 D_TOTAL robustness summary.
-    f5=[["primary_FULL","D_TOTAL_f_minus_a",full,full,0]]
-    for _,rrr in robustness[robustness.estimand=="D_TOTAL_f_minus_a"].iterrows(): f5.append([rrr.diagnostic,rrr.estimand,float(rrr["min"]),float(rrr["max"]),int(rrr.sign_reversals)])
-    # Add selected fixed specs absent from robustness_summary.
-    for label,spec,est,mode in [("published_pc","published_pc","OLS","pp"),("common_log_CMUR","primary_common_pc","OLS","log"),("Theil_Sen","primary_common_pc","THEIL_SEN","pp"),("total_scale","total_scale","OLS","pp")]:
+    # S5 selected-endpoint summary, clearly secondary rather than an overall effect.
+    f5=[['full_reference','selected_endpoint_cell_difference',float(r.D_TOTAL_f_minus_a),float(r.D_TOTAL_f_minus_a),0]]
+    for _,rr0 in robustness[robustness.estimand=='D_TOTAL_f_minus_a'].iterrows():
+        if rr0.diagnostic in ('LOCO','LOYO'): f5.append([rr0.diagnostic,'selected_endpoint_cell_difference',float(rr0['min']),float(rr0['max']),int(rr0.sign_reversals)])
+    for label,spec,est,mode in [('published_pc','published_pc','OLS','pp'),('common_log_CMUR','primary_common_pc','OLS','log'),('Theil_Sen','primary_common_pc','THEIL_SEN','pp'),('total_scale','total_scale','OLS','pp')]:
         q=full_rg[(full_rg.spec==spec)&(full_rg.estimator==est)&(full_rg.cmur_mode==mode)]
-        if len(q)==1:
-            v=float(q.iloc[0].D_TOTAL_f_minus_a); f5.append([label,"D_TOTAL_f_minus_a",v,v,0])
-    f5.append(["CMUR_even_year","D_TOTAL_f_minus_a",float(ce.D_TOTAL_f_minus_a),float(ce.D_TOTAL_f_minus_a),0])
-    pd.DataFrame(f5,columns=["diagnostic","estimand","min","max","sign_reversals"]).drop_duplicates().to_csv(figsd/"figure_s5_broader_robustness_summary.csv",index=False)
+        if len(q)==1: v=float(q.iloc[0].D_TOTAL_f_minus_a); f5.append([label,'selected_endpoint_cell_difference',v,v,0])
+    f5.append(['CMUR_even_year','selected_endpoint_cell_difference',float(ce.D_TOTAL_f_minus_a),float(ce.D_TOTAL_f_minus_a),0])
+    pd.DataFrame(f5,columns=['diagnostic','estimand','min','max','sign_reversals']).drop_duplicates().to_csv(figsd/'figure_s5_broader_robustness_summary.csv',index=False)
 
-    # S6 sign-flip intersections.
-    sf=country.groupby(["sign_flip_CMUR_DMC","sign_flip_DMC_RMC","sign_flip_TERR_CFOOT"],dropna=False).agg(n_countries=("geo","size"),countries=("geo",lambda x:", ".join(sorted(x)))).reset_index().sort_values(["n_countries","sign_flip_CMUR_DMC","sign_flip_DMC_RMC","sign_flip_TERR_CFOOT"],ascending=[False,True,True,True])
-    sf.to_csv(figsd/"figure_s6_sign_flip_overlap.csv",index=False)
+    # S6 point-slope sign-disagreement intersections.
+    sf=cc.groupby(['point_sign_disagreement_CMUR_DMC','point_sign_disagreement_DMC_RMC','point_sign_disagreement_TERR_CFOOT'],dropna=False).agg(n_countries=('geo','size'),countries=('geo',lambda x:', '.join(sorted(x)))).reset_index().sort_values(['n_countries','point_sign_disagreement_CMUR_DMC','point_sign_disagreement_DMC_RMC','point_sign_disagreement_TERR_CFOOT'],ascending=[False,True,True,True])
+    sf.to_csv(figsd/'figure_s6_sign_flip_overlap.csv',index=False)
 
-    # S7 country-level discordance matrix: material rank minus climate rank.
+    # S7 unchanged country-by-cell rank discordance.
     cd=[]
-    for _,cc in country.iterrows():
-        for mat in ["CMUR","DMC","RMC"]:
-            for clim in ["TERR","CFOOT"]:
-                cd.append([cc.geo,f"{mat}×{clim}",float(cc[f"rank_{mat}"]-cc[f"rank_{clim}"])])
-    pd.DataFrame(cd,columns=["geo","cell","material_minus_climate_rank"]).to_csv(figsd/"figure_s7_country_discordance_matrix.csv",index=False)
+    for _,c0 in country.iterrows():
+        for mat in ['CMUR','DMC','RMC']:
+            for clim in ['TERR','CFOOT']: cd.append([c0.geo,f'{mat}×{clim}',float(c0[f'rank_{mat}']-c0[f'rank_{clim}'])])
+    pd.DataFrame(cd,columns=['geo','cell','material_minus_climate_rank']).to_csv(figsd/'figure_s7_country_discordance_matrix.csv',index=False)
 
 
 def _natural_earth_rows(ne_zip: Path):
@@ -452,7 +464,7 @@ def _place_rank_labels(fig,ax,dd,font_pt=4.0):
 def _s2_label_offsets():
     # Directional micro-overrides in typographic points. Text alignment is chosen
     # from the sign of the offset, so a small offset keeps labels close to their
-    # own sign-flip anchor rather than shifting the text center across borders.
+    # own point-sign marker anchor rather than shifting the text center across borders.
     return {
         'CMUR → DMC':{
             'SE':(0,3),'FI':(0,-4),'EE':(6,1),'LV':(5,0),'LT':(6,-3),'DK':(-4,0),'ES':(0,4),'FR':(-5,0),
@@ -525,7 +537,7 @@ def render_all(output_root: Path, geoms: dict):
     fig.supxlabel('Material progress rank',fontsize=7); fig.supylabel('Climate progress rank',fontsize=7); fig.subplots_adjust(left=.065,right=.995,bottom=.08,top=.96,wspace=.14,hspace=.34); _save(fig,output_root,'figure_2_rank_concordance_geometry')
 
     # Figure 3 — selected country-consequence cell values with non-overlapping corner sign-disagreement glyphs.
-    d=pd.read_csv(sd/'figure_3_country_representation_consequences.csv').sort_values('geo'); cols=['rank_shift_CMUR_to_DMC','rank_shift_DMC_to_RMC','rank_shift_TERR_to_CFOOT']; xlabels=['CMUR → DMC','DMC → RMC','Territorial →\nconsumption-based GHG']; flips=['sign_flip_CMUR_DMC','sign_flip_DMC_RMC','sign_flip_TERR_CFOOT']
+    d=pd.read_csv(sd/'figure_3_country_representation_consequences.csv').sort_values('geo'); cols=['rank_shift_CMUR_to_DMC','rank_shift_DMC_to_RMC','rank_shift_TERR_to_CFOOT']; xlabels=['CMUR → DMC','DMC → RMC','Territorial →\nconsumption-based GHG']; flips=['point_sign_disagreement_CMUR_DMC','point_sign_disagreement_DMC_RMC','point_sign_disagreement_TERR_CFOOT']
     arr=d[cols].to_numpy(float); mx=max(abs(arr.min()),abs(arr.max())); fig,ax=plt.subplots(figsize=(W85,5.65)); norm=TwoSlopeNorm(vmin=-mx,vcenter=0,vmax=mx)
     mesh=ax.pcolormesh(np.arange(4)-.5,np.arange(len(d)+1)-.5,arr,cmap=DIVERGE,norm=norm,shading='flat',edgecolors='white',linewidth=.42); ax.set_ylim(len(d)-.5,-.5); ax.set_yticks(np.arange(len(d)),d.geo); ax.set_xticks(range(3),xlabels); ax.tick_params(axis='x',length=0,labelsize=5.25); ax.tick_params(axis='y',length=0)
     text_objs={}; glyph_boxes=[]
@@ -539,7 +551,7 @@ def render_all(output_root: Path, geoms: dict):
     da.add_artist(MplPolygon([[4,10],[10,10],[10,4]],closed=True,facecolor='black',edgecolor='none'))
     ab=AnnotationBbox(da,(.030,-.096),xycoords=ax.transAxes,frameon=False,box_alignment=(0,.5),pad=0,annotation_clip=False,zorder=7)
     ax.add_artist(ab)
-    ax.text(.135,-.096,'corner mark = progress-sign disagreement',transform=ax.transAxes,fontsize=5.3,ha='left',va='center',clip_on=False)
+    ax.text(.135,-.096,'corner mark = point-slope sign disagreement',transform=ax.transAxes,fontsize=5.3,ha='left',va='center',clip_on=False)
     fig.subplots_adjust(left=.14,right=.88,bottom=.145,top=.985); fig.canvas.draw(); ren=fig.canvas.get_renderer()
     for i,j,tri in glyph_boxes:
         tb=text_objs[(i,j)].get_window_extent(ren).expanded(1.02,1.05); verts=ax.transData.transform(tri.get_xy()); gb=Bbox.from_extents(verts[:,0].min(),verts[:,1].min(),verts[:,0].max(),verts[:,1].max()); ov=int(Bbox.overlaps(tb,gb)); qa['figure3_glyphs'].append(dict(country=d.iloc[i].geo,substitution=xlabels[j],glyph_vs_number_overlap=ov,status='PASS' if ov==0 else 'NEEDS_FIX'))
@@ -566,14 +578,29 @@ def render_all(output_root: Path, geoms: dict):
     ax.text(1,-.18,terr,transform=ax.get_xaxis_transform(),ha='center',va='top',fontsize=6.2,fontweight='semibold'); ax.text(4,-.18,cfoot,transform=ax.get_xaxis_transform(),ha='center',va='top',fontsize=6.2,fontweight='semibold')
     fig.subplots_adjust(left=.08,right=.99,bottom=.27,top=.84); _save(fig,output_root,'figure_5_temporal_representation_sensitivity')
 
-    # Figure 6 — selected deletion-cloud design, public semantic row labels.
-    d=pd.read_csv(sd/'figure_6_deletion_robustness.csv'); estim=['D1_b_minus_a','D2_c_minus_b','D3_f_minus_c','D_TOTAL_f_minus_a']; labs=['CMUR → DMC','DMC → RMC','Territorial → consumption-based GHG','Overall representation contrast']; fig,ax=plt.subplots(figsize=(W178,2.75)); rng=np.random.default_rng(1947)
-    for i,e in enumerate(estim):
-        dd=d[d.estimand==e]
-        for source,color,marker in [('LOCO',OKABE_BLUE,'o'),('LOYO',OKABE_ORANGE,'s')]:
-            vv=dd[dd.source==source].value.to_numpy(); yy=i+(rng.random(len(vv))-.5)*.20; ax.scatter(vv,yy,s=11,facecolors='none' if source=='LOYO' else color,edgecolors=color,lw=.6,marker=marker,alpha=.86,label=source if i==0 else None,zorder=2)
-        full=float(dd[dd.source=='FULL'].value.iloc[0]); ax.scatter([full],[i],s=16,marker='D',facecolors='none',edgecolors='black',linewidths=.72,zorder=7,label='Primary 2010–2023' if i==0 else None)
-    ax.axvline(0,color='#777777',lw=.7); ax.set_yticks(range(4),labs,fontsize=6.4); ax.invert_yaxis(); ax.set_xlabel('Difference in Spearman ρ'); ax.legend(frameon=False,ncol=3,fontsize=5.8,loc='upper center',bbox_to_anchor=(.5,1.16)); [ax.spines[s].set_visible(False) for s in ['top','right','left']]; ax.grid(axis='x',color=GRID,lw=.35,zorder=0); fig.subplots_adjust(left=.23,right=.985,bottom=.20,top=.80); _save(fig,output_root,'figure_6_deletion_robustness')
+    # Figure 6 — deletion evidence for the selected endpoint cell difference only.
+    # The endpoint estimand is unchanged; D1/D2/D3 are not privileged in this display.
+    d=pd.read_csv(sd/'figure_6_deletion_robustness.csv')
+    full=float(d.loc[d.source.eq('FULL'),'selected_endpoint_cell_difference'].iloc[0])
+    dl=d[d.source.eq('LOCO')]['selected_endpoint_cell_difference'].astype(float).to_numpy()
+    dy=d[d.source.eq('LOYO')]['selected_endpoint_cell_difference'].astype(float).to_numpy()
+    fig,ax=plt.subplots(figsize=(W178,2.20))
+    # Fixed, deterministic vertical offsets reveal overlapping realizations without changing values.
+    jl=np.linspace(-.115,.115,len(dl)) if len(dl)>1 else np.array([0.0])
+    jy=np.linspace(-.095,.095,len(dy)) if len(dy)>1 else np.array([0.0])
+    ax.scatter(dl,0.07+jl,s=14,color=OKABE_BLUE,alpha=.78,label='Leave one country out',zorder=2)
+    ax.scatter(dy,-.07+jy,s=17,facecolors='white',edgecolors=OKABE_ORANGE,linewidths=.8,label='Leave one year out',zorder=3)
+    ax.scatter([full],[0],marker='D',s=28,color=DARK,label='Full 2010–2023',zorder=5)
+    ax.axvline(full,color='#B8B8B8',lw=.65,ls='--',zorder=1)
+    ax.set_yticks([0],['Selected endpoint cell difference'])
+    ax.set_ylim(-.34,.34)
+    ax.set_xlabel('Difference in Spearman ρ')
+    ax.grid(axis='x',color=GRID,lw=.4)
+    ax.legend(loc='upper center',bbox_to_anchor=(.5,-.25),ncol=3,frameon=False,handletextpad=.4,columnspacing=1.1)
+    [ax.spines[k].set_visible(False) for k in ['top','right','left']]
+    ax.tick_params(axis='y',length=0)
+    fig.subplots_adjust(left=.255,right=.985,bottom=.33,top=.96)
+    _save(fig,output_root,'figure_6_deletion_robustness')
 
     # Figure S1 — selected temporal matrices; diverging scale is scientifically warranted.
     d=pd.read_csv(sd/'figure_s1_temporal_concordance_matrices.csv').set_index('period').loc[PERIOD_ORDER]; vals=[]
@@ -591,12 +618,12 @@ def render_all(output_root: Path, geoms: dict):
     cax=fig.add_subplot(gs[0,3]); cb=fig.colorbar(plt.cm.ScalarMappable(norm=norm,cmap=DIVERGE),cax=cax); cb.solids.set_rasterized(False); cb.set_label('Spearman ρ'); fig.subplots_adjust(left=.15,right=.97,bottom=.16,top=.86); _save(fig,output_root,'figure_s1_temporal_concordance_matrices')
 
     # Figure S2 — Natural Earth country-label adaptation with explicit semantic label policy.
-    d=pd.read_csv(sd/'figure_s2_geography_representation_shifts.csv'); panels=[('rank_shift_CMUR_to_DMC','sign_flip_CMUR_DMC','CMUR → DMC'),('rank_shift_DMC_to_RMC','sign_flip_DMC_RMC','DMC → RMC'),('rank_shift_TERR_to_CFOOT','sign_flip_TERR_CFOOT','Territorial → consumption-based GHG')]; mx=max(abs(d[[p[0] for p in panels]].to_numpy(float).min()),abs(d[[p[0] for p in panels]].to_numpy(float).max())); norm=TwoSlopeNorm(vmin=-mx,vcenter=0,vmax=mx)
+    d=pd.read_csv(sd/'figure_s2_geography_representation_shifts.csv'); panels=[('rank_shift_CMUR_to_DMC','point_sign_disagreement_CMUR_DMC','CMUR → DMC'),('rank_shift_DMC_to_RMC','point_sign_disagreement_DMC_RMC','DMC → RMC'),('rank_shift_TERR_to_CFOOT','point_sign_disagreement_TERR_CFOOT','Territorial → consumption-based GHG')]; mx=max(abs(d[[p[0] for p in panels]].to_numpy(float).min()),abs(d[[p[0] for p in panels]].to_numpy(float).max())); norm=TwoSlopeNorm(vmin=-mx,vcenter=0,vmax=mx)
     fig,axes=plt.subplots(1,3,figsize=(W178,2.75),gridspec_kw={'wspace':.025})
     fig.subplots_adjust(left=.005,right=.995,bottom=.18,top=.94)
     for ax,(col,flip,title) in zip(axes,panels):
         _draw_map(ax,geoms,dict(zip(d.geo,d[col])),DIVERGE,norm,extent); ax.set_title(title,fontsize=6.5,pad=2); qa['figure_s2_labels'] += _render_s2_labels(fig,ax,geoms,d,flip,title)
-    cax=fig.add_axes([.30,.06,.40,.025]); cb=fig.colorbar(plt.cm.ScalarMappable(norm=norm,cmap=DIVERGE),cax=cax,orientation='horizontal'); cb.solids.set_rasterized(False); cb.set_label('Signed rank displacement'); fig.text(.72,.073,'◇ progress-sign disagreement',fontsize=5.3,ha='left',va='center')
+    cax=fig.add_axes([.30,.06,.40,.025]); cb=fig.colorbar(plt.cm.ScalarMappable(norm=norm,cmap=DIVERGE),cax=cax,orientation='horizontal'); cb.solids.set_rasterized(False); cb.set_label('Signed rank displacement'); fig.text(.72,.073,'◇ point-slope sign disagreement',fontsize=5.3,ha='left',va='center')
     fig.canvas.draw()
     for a,b in [(axes[0],axes[1]),(axes[1],axes[2])]:
         x=(a.get_position().x1+b.get_position().x0)/2; fig.add_artist(Line2D([x,x],[.20,.91],transform=fig.transFigure,color='#C8C8C8',lw=.5,zorder=0))
@@ -621,18 +648,18 @@ def render_all(output_root: Path, geoms: dict):
     fig.supxlabel('Material progress score'); fig.supylabel('Climate progress score'); fig.subplots_adjust(left=.08,right=.99,bottom=.09,top=.96,wspace=.25,hspace=.32); _save(fig,output_root,'figure_s4_progress_score_geometry')
 
     # Figure S5 — robust structure retained, labels controlled by publication dictionary.
-    d=pd.read_csv(sd/'figure_s5_broader_robustness_summary.csv').drop_duplicates('diagnostic',keep='last'); order=['primary_FULL','LOCO','LOYO','CMUR_even_year','published_pc','common_log_CMUR','Theil_Sen','total_scale']; d=d.set_index('diagnostic').reindex(order).dropna(how='all').reset_index(); label_map={'primary_FULL':'Primary 2010–2023','LOCO':_pub(labels,'LOCO',False),'LOYO':_pub(labels,'LOYO',False),'CMUR_even_year':_pub(labels,'CMUR_even_year',False),'published_pc':_pub(labels,'published_pc',False),'common_log_CMUR':_pub(labels,'common_log_CMUR',False),'Theil_Sen':_pub(labels,'Theil_Sen',False),'total_scale':_pub(labels,'total_scale',False)}
-    fig,ax=plt.subplots(figsize=(W85,3.65)); y=np.arange(len(d)); primary=float(d[d.diagnostic=='primary_FULL']['min'].iloc[0])
+    d=pd.read_csv(sd/'figure_s5_broader_robustness_summary.csv').drop_duplicates('diagnostic',keep='last'); order=['full_reference','LOCO','LOYO','CMUR_even_year','published_pc','common_log_CMUR','Theil_Sen','total_scale']; d=d.set_index('diagnostic').reindex(order).dropna(how='all').reset_index(); label_map={'full_reference':'Full 2010–2023','LOCO':_pub(labels,'LOCO',False),'LOYO':_pub(labels,'LOYO',False),'CMUR_even_year':_pub(labels,'CMUR_even_year',False),'published_pc':_pub(labels,'published_pc',False),'common_log_CMUR':_pub(labels,'common_log_CMUR',False),'Theil_Sen':_pub(labels,'Theil_Sen',False),'total_scale':_pub(labels,'total_scale',False)}
+    fig,ax=plt.subplots(figsize=(W85,3.65)); y=np.arange(len(d)); reference=float(d[d.diagnostic=='full_reference']['min'].iloc[0])
     for i,r0 in d.iterrows():
         if abs(r0['max']-r0['min'])<1e-14: ax.scatter([r0['min']],[i],s=18,facecolors='white',edgecolors=OKABE_BLUE,zorder=3)
         else: ax.plot([r0['min'],r0['max']],[i,i],color=OKABE_BLUE,lw=1.35,marker='o',markersize=2.9)
-    ax.axvline(primary,color=OKABE_ORANGE,lw=.9,ls='--'); ax.text(primary,1.015,f'Primary 2010–2023 = {primary:.3f}',transform=ax.get_xaxis_transform(),ha='center',va='bottom',fontsize=5.8,color=OKABE_ORANGE,clip_on=False); ax.set_yticks(y,[label_map[x] for x in d.diagnostic]); ax.invert_yaxis(); ax.set_xlabel('Overall representation contrast'); ax.grid(axis='x',color=GRID,lw=.4); [ax.spines[s].set_visible(False) for s in ['top','right','left']]; fig.subplots_adjust(left=.42,right=.98,bottom=.14,top=.91); _save(fig,output_root,'figure_s5_broader_robustness_summary')
+    ax.axvline(reference,color=OKABE_ORANGE,lw=.9,ls='--'); ax.text(reference,1.015,f'Full 2010–2023 reference = {reference:.3f}',transform=ax.get_xaxis_transform(),ha='center',va='bottom',fontsize=5.8,color=OKABE_ORANGE,clip_on=False); ax.set_yticks(y,[label_map[x] for x in d.diagnostic]); ax.invert_yaxis(); ax.set_xlabel('Selected endpoint difference'); ax.grid(axis='x',color=GRID,lw=.4); [ax.spines[s].set_visible(False) for s in ['top','right','left']]; fig.subplots_adjust(left=.42,right=.98,bottom=.14,top=.91); _save(fig,output_root,'figure_s5_broader_robustness_summary')
 
     # Figure S6 — categorical UpSet structure retained; no artificial numeric x-axis.
     d=pd.read_csv(sd/'figure_s6_sign_flip_overlap.csv').reset_index(drop=True); x=np.arange(len(d)); fig=plt.figure(figsize=(W85,3.3)); gs=fig.add_gridspec(2,1,height_ratios=[1.25,1],hspace=.05); axb=fig.add_subplot(gs[0]); axm=fig.add_subplot(gs[1],sharex=axb); bars=axb.bar(x,d.n_countries,color=OKABE_BLUE,width=.60)
     for rect,val in zip(bars,d.n_countries): axb.text(rect.get_x()+rect.get_width()/2,rect.get_height()+.08,str(int(val)),ha='center',va='bottom',fontsize=5.8)
     axb.set_ylabel('Countries'); axb.set_xticks([]); axb.set_ylim(0,max(d.n_countries)+1.25); axb.grid(axis='y',color=GRID,lw=.35); [axb.spines[s].set_visible(False) for s in ['top','right','bottom']]
-    rows=[('CMUR → DMC','sign_flip_CMUR_DMC'),('DMC → RMC','sign_flip_DMC_RMC'),('Territorial → consumption-based GHG','sign_flip_TERR_CFOOT')]
+    rows=[('CMUR → DMC','point_sign_disagreement_CMUR_DMC'),('DMC → RMC','point_sign_disagreement_DMC_RMC'),('Territorial → consumption-based GHG','point_sign_disagreement_TERR_CFOOT')]
     for yi,(lab,col) in enumerate(rows):
         xs=[]
         for xi,val in enumerate(d[col].astype(bool)): axm.scatter([xi],[yi],s=21,facecolors='#222222' if val else 'white',edgecolors='#777777',linewidths=.55); xs.append(xi if val else None)
@@ -640,7 +667,7 @@ def render_all(output_root: Path, geoms: dict):
     for xi in range(len(d)):
         active=[yi for yi,(_,col) in enumerate(rows) if bool(d.loc[xi,col])]
         if len(active)>1: axm.plot([xi,xi],[min(active),max(active)],color='#222222',lw=.7,zorder=0)
-    axm.set_yticks(range(3),[r[0] for r in rows]); axm.set_xticks(x,['' for _ in x]); axm.tick_params(axis='x',length=0); axm.set_xlabel('Observed sign-flip combinations'); axm.set_ylim(2.6,-.6); [axm.spines[s].set_visible(False) for s in ['top','right','left']]; fig.subplots_adjust(left=.32,right=.98,bottom=.16,top=.95); _save(fig,output_root,'figure_s6_sign_flip_overlap')
+    axm.set_yticks(range(3),[r[0] for r in rows]); axm.set_xticks(x,['' for _ in x]); axm.tick_params(axis='x',length=0); axm.set_xlabel('Disagreement pattern'); axm.set_ylim(2.6,-.6); [axm.spines[s].set_visible(False) for s in ['top','right','left']]; fig.subplots_adjust(left=.32,right=.98,bottom=.16,top=.95); _save(fig,output_root,'figure_s6_sign_flip_overlap')
 
     # Figure S7 — CD01 grouping, public labels and subtle cell boundaries.
     d=pd.read_csv(sd/'figure_s7_country_discordance_matrix.csv'); countries=sorted(d.geo.unique()); cells=['CMUR×TERR','DMC×TERR','RMC×TERR','CMUR×CFOOT','DMC×CFOOT','RMC×CFOOT']; arr=np.array([[float(d[(d.geo==g)&(d.cell==c)].material_minus_climate_rank.iloc[0]) for c in cells] for g in countries]); mx=max(abs(arr.min()),abs(arr.max())); fig,ax=plt.subplots(figsize=(W178,4.75)); norm=TwoSlopeNorm(vmin=-mx,vcenter=0,vmax=mx); mesh=ax.pcolormesh(np.arange(7)-.5,np.arange(len(countries)+1)-.5,arr,cmap=DIVERGE,norm=norm,shading='flat',edgecolors='#E8E8E8',linewidth=.32); ax.set_ylim(len(countries)-.5,-.5); ax.set_yticks(range(len(countries)),countries); ax.set_xticks(range(6),['CMUR','DMC','RMC','CMUR','DMC','RMC']); ax.axvline(2.5,color='#9D9D9D',lw=.75); ax.text(1,1.02,terr,transform=ax.get_xaxis_transform(),ha='center',va='bottom',fontsize=6.4,fontweight='semibold',clip_on=False); ax.text(4,1.02,cfoot,transform=ax.get_xaxis_transform(),ha='center',va='bottom',fontsize=6.4,fontweight='semibold',clip_on=False); cb=fig.colorbar(plt.cm.ScalarMappable(norm=norm,cmap=DIVERGE),ax=ax,fraction=.025,pad=.02); cb.solids.set_rasterized(False); cb.set_label('Material rank − climate rank'); fig.subplots_adjust(left=.06,right=.93,bottom=.08,top=.91); _save(fig,output_root,'figure_s7_country_discordance_matrix')
